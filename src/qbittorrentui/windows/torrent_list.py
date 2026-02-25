@@ -96,6 +96,19 @@ class TorrentListWindow(uw.Pile):
                 height=(uw.RELATIVE, 50),
                 min_width=20,
             )
+        elif key in ["s", "S"]:
+            self.main.loop.widget = uw.Overlay(
+                top_w=uw.LineBox(
+                    TorrentSortDialog(self.main, self.torrent_list_w),
+                    title="Sort Torrents",
+                ),
+                bottom_w=self.main.app_window,
+                align=uw.CENTER,
+                valign=uw.MIDDLE,
+                width=30,
+                height=len(TorrentList.SORT_COLUMNS) + 4,
+                min_width=20,
+            )
         return key
 
     def torrent_list_init(self, sender):
@@ -161,10 +174,27 @@ class TorrentListWindow(uw.Pile):
 
 
 class TorrentList(uw.ListBox):
+    SORT_COLUMNS = [
+        ("Name", "name"),
+        ("Size", "size"),
+        ("Progress", "progress"),
+        ("Download Speed", "dlspeed"),
+        ("Upload Speed", "upspeed"),
+        ("Uploaded", "uploaded"),
+        ("Ratio", "ratio"),
+        ("Seeds", "num_seeds"),
+        ("Leechers", "num_leechs"),
+        ("ETA", "eta"),
+        ("Category", "category"),
+    ]
+
     def __init__(self, torrent_list_box):
         super().__init__(uw.SimpleFocusListWalker([uw.Text("Loading...")]))
         # currently needed for resizing and creating TorrentRows
         self.torrent_list_box_w = torrent_list_box
+
+        self.sort_column = "name"
+        self.sort_ascending = True
 
         self.torrent_row_store = {}
         """Master torrent row widget list of all torrents."""
@@ -208,6 +238,19 @@ class TorrentList(uw.ListBox):
                     filtered_list.append(torrent_row_w)
         else:
             filtered_list.extend(self.torrent_row_store.values())
+
+        # sort the filtered list
+        string_columns = {"name", "category"}
+
+        def sort_key(torrent_row_w):
+            val = torrent_row_w.base_widget.cached_torrent.get(self.sort_column)
+            if val is None:
+                return "" if self.sort_column in string_columns else 0
+            return val
+
+        filtered_list = sorted(
+            filtered_list, key=sort_key, reverse=(not self.sort_ascending)
+        )
 
         self.body = uw.SimpleFocusListWalker(filtered_list)
 
@@ -1150,6 +1193,42 @@ class TorrentOptionsDialog(uw.ListBox):
     def reset_screen_to_torrent_list_window(self):
         update_torrent_list_now.send("torrent menu")
         self.main.loop.widget = self.main.app_window
+
+
+class TorrentSortDialog(uw.ListBox):
+    def __init__(self, main, torrent_list):
+        self.main = main
+        self.torrent_list = torrent_list
+
+        items = []
+        for display_name, column_key in TorrentList.SORT_COLUMNS:
+            if column_key == self.torrent_list.sort_column:
+                arrow = " \u25b2" if self.torrent_list.sort_ascending else " \u25bc"
+                label = display_name + arrow
+            else:
+                label = display_name
+            btn = ButtonWithoutCursor(
+                label, on_press=self.select_column, user_data=column_key
+            )
+            items.append(uw.AttrMap(btn, "", focus_map="selected"))
+
+        super().__init__(uw.SimpleFocusListWalker(items))
+
+    def select_column(self, button, column_key):
+        if self.torrent_list.sort_column == column_key:
+            self.torrent_list.sort_ascending = not self.torrent_list.sort_ascending
+        else:
+            self.torrent_list.sort_column = column_key
+            self.torrent_list.sort_ascending = True
+        refresh_torrent_list_now.send("sort changed")
+        self.main.loop.widget = self.main.app_window
+
+    def keypress(self, size, key):
+        log_keypress(logger, self, key)
+        key = super().keypress(size, key)
+        if key == "esc":
+            self.main.loop.widget = self.main.app_window
+        return key
 
 
 class TorrentAddDialog(uw.ListBox):

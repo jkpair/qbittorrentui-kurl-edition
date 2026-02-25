@@ -5,7 +5,7 @@ from time import sleep, time
 import blinker
 import urwid as uw
 
-from qbittorrentui.config import APPLICATION_NAME, config
+from qbittorrentui.config import APPLICATION_NAME, DEFAULT_CONFIG_PATH, config
 from qbittorrentui.connector import Connector
 from qbittorrentui.daemon import DaemonManager
 from qbittorrentui.events import (
@@ -175,7 +175,9 @@ class Main:
         super().__init__()
 
         if args.config_file:
-            config.read(filenames=args.config_file)
+            config.load_file(args.config_file)
+        elif DEFAULT_CONFIG_PATH.exists():
+            config.load_file(DEFAULT_CONFIG_PATH)
 
         self.ui = uw.raw_display.Screen()
         self.loop = uw.MainLoop(

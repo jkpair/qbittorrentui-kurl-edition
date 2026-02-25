@@ -14,9 +14,11 @@ Key Map
 Any Window
 * q : exit
 * n : open connection dialog
+* c : open configuration manager
 
 Torrent List Window
 * a : open add torrent dialog
+* s : open sort dialog
 * enter : open context menu for selected torrent
 * right arrow: open Torrent Window
 
