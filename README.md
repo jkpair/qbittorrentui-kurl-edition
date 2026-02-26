@@ -11,10 +11,13 @@ Console UI for qBittorrent. Not feature-complete but is usable for low volume an
 
 Key Map
 -------
+A context-sensitive keybind hint bar is displayed at the bottom of the screen showing available keys for the current view.
+
 Any Window
 * q : exit
 * n : open connection dialog
 * c : open configuration manager
+* t : cycle theme (via config manager)
 
 Torrent List Window
 * a : open add torrent dialog
@@ -28,6 +31,12 @@ Torrent Window
 * Content
   * enter : bump priority
   * space : bump priority
+
+Themes
+------
+qBittorrenTUI includes several built-in color themes: `default`, `solarized-dark`, `solarized-light`, `gruvbox`, `dracula`, `nord`, and `monokai`. Change themes via the configuration manager (`c` key) under the Theme section.
+
+Custom themes can be created as INI files and placed in `~/.config/qbittorrentui/themes/` or imported through the config manager. See `src/qbittorrentui/themes.py` for the format.
 
 Installation
 ------------
@@ -62,13 +71,13 @@ DO_NOT_VERIFY_WEBUI_CERTIFICATE is necessary if the certificate is untrusted (e.
 TODO/Wishlist
 -------------
 Application
- - [ ] Figure out the theme(s)
+ - [x] Figure out the theme(s)
  - [x] Configuration for connections
  - [ ] Log/activity output (likely above status bar)
  - [ ] Implement window for editing qBittorrent settings
 
 Torrent List Window
- - [ ] Torrent sorting
+ - [x] Torrent sorting
  - [ ] Additional torrent filtering mechanisms
  - [ ] Torrent searching
  - [ ] Torrent status icon in torrent name

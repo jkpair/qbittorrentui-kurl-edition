@@ -34,11 +34,15 @@ class Configuration(configparser.ConfigParser):
         self.read(path)
         self.config_path = Path(path)
 
+    # Options stored at the DEFAULT level that should be persisted
+    _global_options = ("theme",)
+
     def write_to_disk(self, path=None):
-        """Write non-DEFAULT sections to disk.
+        """Write config sections and global options to disk.
 
         Uses a fresh ConfigParser to avoid writing DEFAULT values into each
-        section on disk.
+        section on disk.  Global options (like THEME) that live in the
+        DEFAULT section are written explicitly so they survive restarts.
         """
         target = Path(path) if path else self.config_path
         if target is None:
@@ -46,6 +50,12 @@ class Configuration(configparser.ConfigParser):
         target.parent.mkdir(parents=True, exist_ok=True)
 
         writer = configparser.ConfigParser()
+
+        # persist global DEFAULT-level options
+        for option in self._global_options:
+            if option in self._defaults:
+                writer.set(configparser.DEFAULTSECT, option, self._defaults[option])
+
         for section in self.sections():
             writer.add_section(section)
             for option in self.options(section):
