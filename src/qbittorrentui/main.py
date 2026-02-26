@@ -20,15 +20,7 @@ from qbittorrentui.misc_widgets import ButtonWithoutCursor
 from qbittorrentui.themes import get_theme, theme_to_palette
 from qbittorrentui.windows.application import AppWindow, ConnectDialog
 
-try:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="[%(asctime)s] {%(name)s:%(lineno)d} %(levelname)s - %(message)s",
-        filename="/home/russell/github/qbittorrentui/output.txt",
-        filemode="w",
-    )
-except Exception:
-    logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # disable third-party loggers
