@@ -1426,8 +1426,12 @@ class TorrentAddDialog(uw.ListBox):
             default="<no category>",
             auto_complete=True,
         )
+        # newer qBittorrent versions renamed start_paused_enabled to add_stopped_enabled
+        start_paused = prefs.get(
+            "start_paused_enabled", prefs.get("add_stopped_enabled", False)
+        )
         self.start_torrent_w = uw.CheckBox(
-            "Start Torrent", state=(not prefs.start_paused_enabled)
+            "Start Torrent", state=(not start_paused)
         )
         self.download_in_sequential_order_w = uw.CheckBox(
             "Download in Sequential Order"
