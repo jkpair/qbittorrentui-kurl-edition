@@ -120,9 +120,10 @@ Torrent List Window
  - [ ] Torrent list column configuration
 
 Torrent Window
- - [ ] Make focus more obvious when switching between tabs list and a display
+ - [x] Make focus more obvious when switching between tabs list and a display
  - [ ] Scrollbar in the displays
  - [ ] Speed graph display
 
 Torrent Window Content Display
- - [ ] Left key should return to tab list
+ - [x] Left key should return to tab list
+ - [x] Fix content tab focus highlight on progress bars
