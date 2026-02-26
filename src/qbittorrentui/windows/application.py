@@ -7,14 +7,18 @@ from qbittorrentui.config import APPLICATION_NAME, DOWN_TRIANGLE, UP_TRIANGLE, c
 from qbittorrentui.connector import ConnectorError, LoginFailed
 from qbittorrentui.debug import log_keypress, log_timing
 from qbittorrentui.events import (
+    DIALOG_HINTS,
+    TORRENT_LIST_HINTS,
     exit_tui,
     initialize_torrent_list,
+    keybind_context_changed,
     reset_daemons,
     server_details_changed,
     server_state_changed,
 )
 from qbittorrentui.formatters import natural_file_size
-from qbittorrentui.misc_widgets import ButtonWithoutCursor
+from qbittorrentui.misc_widgets import ButtonWithoutCursor, KeybindHintBar
+from qbittorrentui.themes import list_available_themes
 from qbittorrentui.windows.torrent_list import TorrentListWindow
 
 logger = logging.getLogger(__name__)
@@ -27,12 +31,20 @@ class AppWindow(uw.Frame):
         # build app window
         self.title_bar_w = AppTitleBar()
         self.status_bar_w = AppStatusBar()
+        self.keybind_bar_w = KeybindHintBar()
         self.torrent_list_w = TorrentListWindow(self.main)
+
+        footer = uw.Pile(
+            [
+                self.status_bar_w,
+                uw.AttrMap(self.keybind_bar_w, "keybind bar"),
+            ]
+        )
 
         super().__init__(
             body=self.torrent_list_w,
             header=self.title_bar_w,
-            footer=self.status_bar_w,
+            footer=footer,
             focus_part="body",
         )
 
@@ -56,6 +68,16 @@ class AppWindow(uw.Frame):
                 valign=uw.MIDDLE,
                 height=(uw.RELATIVE, 80),
             )
+        elif key == "?":
+            self.main.loop.widget = uw.Overlay(
+                top_w=uw.LineBox(HelpDialog(self.main), title="Help"),
+                bottom_w=self.main.loop.widget,
+                align=uw.CENTER,
+                width=(uw.RELATIVE, 60),
+                valign=uw.MIDDLE,
+                height=(uw.RELATIVE, 80),
+            )
+            return None
         return super().keypress(size, key)
 
 
@@ -154,6 +176,97 @@ class AppStatusBar(uw.Columns):
         assert log_timing(logger, "Updating", self, sender, start_time)
 
 
+class HelpDialog(uw.ListBox):
+    """Overlay showing all available keybindings by context."""
+
+    HELP_SECTIONS = [
+        (
+            "Torrent List",
+            [
+                ("p / P", "Pause focused torrent"),
+                ("r / R", "Resume focused torrent"),
+                ("d", "Delete focused torrent"),
+                ("F", "Force resume focused torrent"),
+                ("a / A", "Add new torrent"),
+                ("s / S", "Sort torrent list"),
+                ("Enter", "Open torrent options dialog"),
+                ("\u2192 (Right)", "Open torrent details"),
+                ("n / N", "New connection"),
+                ("c / C", "Configuration manager"),
+                ("q / Q", "Quit application"),
+                ("\u2190 / \u2192", "Switch status tabs"),
+                ("\u2191 / \u2193", "Navigate torrent list"),
+            ],
+        ),
+        (
+            "Torrent Details",
+            [
+                ("Esc / \u2190", "Return to torrent list"),
+                ("\u2191 / \u2193", "Navigate tabs / content"),
+                ("\u2192", "Enter content area"),
+            ],
+        ),
+        (
+            "Content Tab",
+            [
+                ("Space", "Cycle file priority"),
+                ("Esc / \u2190", "Return to torrent list"),
+            ],
+        ),
+        (
+            "Dialogs",
+            [
+                ("Tab", "Next field"),
+                ("Shift+Tab", "Previous field"),
+                ("Esc", "Close dialog"),
+            ],
+        ),
+        (
+            "Global",
+            [
+                ("?", "Toggle this help screen"),
+            ],
+        ),
+    ]
+
+    def __init__(self, main):
+        self.main = main
+
+        walker_list = []
+        for section_name, bindings in self.HELP_SECTIONS:
+            walker_list.append(
+                uw.AttrMap(uw.Text(f" {section_name}", align=uw.LEFT), "reversed")
+            )
+            walker_list.append(uw.Divider())
+            for key_str, description in bindings:
+                walker_list.append(
+                    uw.Columns(
+                        [
+                            (16, uw.Text(("keybind key", f"  {key_str}"))),
+                            uw.Text(description),
+                        ],
+                        dividechars=1,
+                    )
+                )
+            walker_list.append(uw.Divider())
+
+        walker_list.append(
+            uw.Text("Press ? or Esc to close", align=uw.CENTER),
+        )
+
+        super().__init__(uw.SimpleFocusListWalker(walker_list))
+
+    def keypress(self, size, key):
+        if key in ["?", "esc"]:
+            self._close()
+            return None
+        return super().keypress(size, key)
+
+    def _close(self):
+        if hasattr(self.main.loop.widget, "bottom_w"):
+            self.main.loop.widget = self.main.loop.widget.bottom_w
+
+
 class ConnectDialog(uw.ListBox):
     def __init__(self, main, error_message: str = "", support_auto_connect=False):
         self.main = main
@@ -239,6 +352,8 @@ class ConnectDialog(uw.ListBox):
 
         super().__init__(uw.SimpleFocusListWalker(walker_list))
 
+        keybind_context_changed.send(self, hints=DIALOG_HINTS)
+
         if self.attempt_auto_connect:
             self.main.loop.set_alarm_in(0.001, callback=self.auto_connect)
 
@@ -258,6 +373,7 @@ class ConnectDialog(uw.ListBox):
             self.main.loop.widget, "bottom_w"
         ):
             self.main.loop.widget = self.main.loop.widget.bottom_w
+            keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
         else:
             self.leave_app()
 
@@ -318,6 +434,7 @@ class ConnectDialog(uw.ListBox):
             self.main.app_window.body = self.main.app_window.torrent_list_w
             self.main.loop.widget = self.main.app_window
             initialize_torrent_list.send("connect dialog")
+            keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
         except LoginFailed:
             self.error_w.set_text(
                 f"Error: login failed for {host}{f':{port}' if port else ''}"
@@ -334,10 +451,14 @@ class ConfigManagerDialog(uw.ListBox):
         self.section_widgets = {}
         self.new_profile_widgets = {}
         self.import_path_w = None
+        self.theme_import_path_w = None
+        self.theme_radio_group = []
         self.status_w = uw.Text("", align=uw.CENTER)
 
         walker_list = self._build_walker_list()
         super().__init__(uw.SimpleFocusListWalker(walker_list))
+
+        keybind_context_changed.send(self, hints=DIALOG_HINTS)
 
     def _build_walker_list(self):
         walker_list = [
@@ -421,6 +542,45 @@ class ConfigManagerDialog(uw.ListBox):
             [name_w, host_w, port_w, user_w, pass_w, auto_w, uw.Divider()]
         )
 
+        # theme section
+        walker_list.append(uw.AttrMap(uw.Text(" Theme", align=uw.LEFT), "reversed"))
+        walker_list.append(uw.Divider())
+        current_theme = config.get("THEME")
+        self.theme_radio_group = []
+        for theme_name in list_available_themes():
+            is_current = theme_name == current_theme
+            rb = uw.RadioButton(
+                self.theme_radio_group,
+                f"  {theme_name}",
+                state=is_current,
+                on_state_change=self.on_theme_preview,
+                user_data=theme_name,
+            )
+            walker_list.append(rb)
+        walker_list.append(uw.Divider())
+        self.theme_import_path_w = uw.Edit("  Custom theme INI path: ")
+        walker_list.append(self.theme_import_path_w)
+        walker_list.append(
+            uw.Columns(
+                [
+                    uw.Padding(uw.Text("")),
+                    (
+                        16,
+                        uw.AttrMap(
+                            ButtonWithoutCursor(
+                                "Import Theme", on_press=self.do_import_theme
+                            ),
+                            "",
+                            focus_map="selected",
+                        ),
+                    ),
+                    uw.Padding(uw.Text("")),
+                ],
+                dividechars=2,
+            )
+        )
+        walker_list.append(uw.Divider())
+
         # import section
         walker_list.append(
             uw.AttrMap(uw.Text(" Import Config", align=uw.LEFT), "reversed")
@@ -495,6 +655,7 @@ class ConfigManagerDialog(uw.ListBox):
     def close_dialog(self, *a):
         if hasattr(self.main.loop.widget, "bottom_w"):
             self.main.loop.widget = self.main.loop.widget.bottom_w
+            keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
 
     def do_save(self, *a):
         """Read all edit widgets, update config sections, and write to disk."""
@@ -552,8 +713,72 @@ class ConfigManagerDialog(uw.ListBox):
                 ),
             )
 
+        # save selected theme
+        for rb in self.theme_radio_group:
+            if rb.get_state():
+                # strip leading spaces from label
+                selected_theme = rb.get_label().strip()
+                config.set(
+                    section=config.default_section, option="THEME", value=selected_theme
+                )
+                self.main.apply_theme(selected_theme)
+                break
+
         config.write_to_disk()
-        self.status_w.set_text(f"Saved to {config.config_path}")
+        self._show_saved_popup()
+
+    def _show_saved_popup(self):
+        """Show a 'Saved!' popup that closes the config dialog on dismiss."""
+        self.main.loop.widget = uw.Overlay(
+            top_w=uw.LineBox(
+                uw.ListBox(
+                    uw.SimpleFocusListWalker(
+                        [
+                            uw.Divider(),
+                            uw.Text(
+                                f"Saved to {config.config_path}",
+                                align=uw.CENTER,
+                            ),
+                            uw.Divider(),
+                            uw.Columns(
+                                [
+                                    uw.Padding(uw.Text("")),
+                                    (
+                                        6,
+                                        uw.AttrMap(
+                                            ButtonWithoutCursor(
+                                                "OK",
+                                                on_press=self._dismiss_saved_popup,
+                                            ),
+                                            "",
+                                            focus_map="selected",
+                                        ),
+                                    ),
+                                    uw.Padding(uw.Text("")),
+                                ],
+                                dividechars=2,
+                            ),
+                        ]
+                    )
+                )
+            ),
+            bottom_w=self.main.loop.widget,
+            align=uw.CENTER,
+            valign=uw.MIDDLE,
+            width=50,
+            height=8,
+        )
+
+    def _dismiss_saved_popup(self, *a):
+        """Dismiss the saved popup and close the config dialog."""
+        # pop the saved popup overlay, then pop the config dialog overlay
+        if hasattr(self.main.loop.widget, "bottom_w"):
+            config_overlay = self.main.loop.widget.bottom_w
+            if hasattr(config_overlay, "bottom_w"):
+                self.main.loop.widget = config_overlay.bottom_w
+            else:
+                self.main.loop.widget = config_overlay
+        keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
 
     def do_clear(self, *a):
         """Show confirmation before clearing config."""
@@ -636,3 +861,35 @@ class ConfigManagerDialog(uw.ListBox):
             )
         except Exception as e:
             self.status_w.set_text(f"Import error: {e}")
+
+    def on_theme_preview(self, radio_button, new_state, theme_name):
+        """Live-preview a theme when its radio button is selected."""
+        if new_state:
+            self.main.apply_theme(theme_name)
+
+    def do_import_theme(self, *a):
+        """Import a custom theme INI file into the themes directory."""
+        import shutil
+
+        from qbittorrentui.themes import get_custom_themes_dir, load_custom_theme
+
+        path = self.theme_import_path_w.get_edit_text().strip()
+        if not path:
+            self.status_w.set_text("Error: no theme file path provided")
+            return
+        try:
+            # validate it loads correctly
+            load_custom_theme(path)
+            # copy to themes dir
+            themes_dir = get_custom_themes_dir()
+            themes_dir.mkdir(parents=True, exist_ok=True)
+            from pathlib import Path
+
+            dest = themes_dir / Path(path).name
+            shutil.copy2(path, dest)
+            theme_stem = Path(path).stem
+            self.status_w.set_text(
+                f"Theme '{theme_stem}' imported - reopen config to see it"
+            )
+        except Exception as e:
+            self.status_w.set_text(f"Theme import error: {e}")

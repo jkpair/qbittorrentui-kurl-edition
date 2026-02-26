@@ -42,5 +42,36 @@ reset_daemons = blinker.Signal()
 # signal that the tab changed in a torrent window
 torrent_window_tab_change = blinker.Signal()
 
+# signal that the active keybind context changed
+keybind_context_changed = blinker.Signal()
+
 # signal to close up shop
 exit_tui = blinker.Signal()
+
+# Keybind hint constants (single source of truth)
+TORRENT_LIST_HINTS = [
+    ("p", "Pause"),
+    ("r", "Resume"),
+    ("d", "Delete"),
+    ("a", "Add"),
+    ("s", "Sort"),
+    ("Enter", "Options"),
+    ("\u2192", "Details"),
+]
+
+DIALOG_HINTS = [
+    ("Tab", "Next"),
+    ("S-Tab", "Prev"),
+    ("Esc", "Close"),
+]
+
+TORRENT_WINDOW_HINTS = [
+    ("Esc", "Back"),
+    ("\u2190", "Back"),
+]
+
+CONTENT_TAB_HINTS = [
+    ("Space", "Priority"),
+    ("Esc", "Back"),
+    ("\u2190", "Back"),
+]

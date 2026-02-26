@@ -16,6 +16,8 @@ from qbittorrentui.events import (
     server_state_changed,
     server_torrents_changed,
 )
+from qbittorrentui.misc_widgets import ButtonWithoutCursor
+from qbittorrentui.themes import get_theme, theme_to_palette
 from qbittorrentui.windows.application import AppWindow, ConnectDialog
 
 try:
@@ -242,33 +244,16 @@ class Main:
     #########################################
     def _setup_screen(self):
         logger.info("Setting up screen")
-        palette = [
-            ("dark blue on default", "dark blue", ""),
-            ("dark cyan on default", "dark cyan", ""),
-            ("dark green on default", "dark green", ""),
-            ("dark magenta on default", "dark magenta", ""),
-            ("light red on default", "light red", ""),
-            ("selected", "white,bold", "dark blue", "standout"),
-            ("pg normal", "", ""),
-            ("pg complete", "", "dark blue"),
-            ("pg smooth", "", ""),
-            ("body", "black", "light gray", "standout"),
-            ("header", "white", "dark red", "bold"),
-            ("screen edge", "light blue", "dark cyan"),
-            ("main shadow", "dark gray", "black"),
-            ("line", "black", "light gray", "standout"),
-            ("bg background", "light gray", "black"),
-            ("bg 1", "black", "dark blue", "standout"),
-            ("bg 1 smooth", "dark blue", "black"),
-            ("bg 2", "black", "dark cyan", "standout"),
-            ("bg 2 smooth", "dark cyan", "black"),
-            ("button normal", "light gray", "dark blue", "standout"),
-            ("button select", "white", "dark green"),
-            ("line", "black", "light gray", "standout"),
-            ("reversed", "standout", ""),
-        ]
+        theme_name = config.get("THEME")
+        palette = theme_to_palette(get_theme(theme_name))
         self.ui.set_terminal_properties(colors=256)
         self.ui.register_palette(palette=palette)
+
+    def apply_theme(self, theme_name):
+        """Apply a new theme by name and refresh the screen."""
+        palette = theme_to_palette(get_theme(theme_name))
+        self.ui.register_palette(palette=palette)
+        self.loop.screen.clear()
 
     def _setup_splash(self):
         logger.info("Creating splash window")
@@ -332,10 +317,65 @@ class Main:
     #########################################
     # Cleanup and Exit - always exit through here
     #########################################
-    @staticmethod
-    def unhandled_urwid_loop_input(key):
+    def unhandled_urwid_loop_input(self, key):
         if key in ("q", "Q"):
-            exit_tui.send("main loop unhandled input")
+            self._show_quit_confirmation()
+
+    def _show_quit_confirmation(self):
+        self.loop.widget = uw.Overlay(
+            top_w=uw.LineBox(
+                uw.ListBox(
+                    uw.SimpleFocusListWalker(
+                        [
+                            uw.Divider(),
+                            uw.Text("Quit qBittorrenTUI?", align=uw.CENTER),
+                            uw.Divider(),
+                            uw.Columns(
+                                [
+                                    uw.Padding(uw.Text("")),
+                                    (
+                                        7,
+                                        uw.AttrMap(
+                                            ButtonWithoutCursor(
+                                                "Yes",
+                                                on_press=self._confirm_quit,
+                                            ),
+                                            "",
+                                            focus_map="selected",
+                                        ),
+                                    ),
+                                    (
+                                        6,
+                                        uw.AttrMap(
+                                            ButtonWithoutCursor(
+                                                "No",
+                                                on_press=self._dismiss_quit,
+                                            ),
+                                            "",
+                                            focus_map="selected",
+                                        ),
+                                    ),
+                                    uw.Padding(uw.Text("")),
+                                ],
+                                dividechars=2,
+                            ),
+                        ]
+                    )
+                )
+            ),
+            bottom_w=self.loop.widget,
+            align=uw.CENTER,
+            valign=uw.MIDDLE,
+            width=30,
+            height=8,
+        )
+
+    def _confirm_quit(self, _):
+        exit_tui.send("quit confirmation")
+
+    def _dismiss_quit(self, _):
+        if hasattr(self.loop.widget, "bottom_w"):
+            self.loop.widget = self.loop.widget.bottom_w
 
     def stop_loop_and_cleanup(self, sender):
         """

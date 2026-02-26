@@ -20,7 +20,10 @@ from qbittorrentui.config import (
 from qbittorrentui.connector import Connector
 from qbittorrentui.debug import log_keypress, log_timing
 from qbittorrentui.events import (
+    DIALOG_HINTS,
+    TORRENT_LIST_HINTS,
     initialize_torrent_list,
+    keybind_context_changed,
     refresh_torrent_list_now,
     server_torrents_changed,
     update_torrent_list_now,
@@ -54,9 +57,12 @@ class TorrentListWindow(uw.Pile):
         #  Set up torrent status tabs
         self.torrent_tabs_w = TorrentListTabsColumns()
 
+        # column header row
+        self.torrent_list_header_w = TorrentListHeader()
+
         pile = [
             (1, self.torrent_tabs_w),
-            (1, uw.Filler(uw.Divider())),
+            (1, uw.AttrMap(self.torrent_list_header_w, "column header")),
             self.torrent_list_w,
         ]
 
@@ -65,6 +71,9 @@ class TorrentListWindow(uw.Pile):
 
         # signals
         initialize_torrent_list.connect(receiver=self.torrent_list_init)
+
+        # fire initial keybind context
+        keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
 
     @property
     def width(self):
@@ -330,7 +339,7 @@ class TorrentList(uw.ListBox):
         max name length 3) Determine widths of different sizings 4)
         Apply largest sizing that fits
         """
-        # torrent info width with graphic progress bar: 115
+        # torrent info width with graphic progress bar: 126 (115 + 11 for dividechars=2)
 
         name_list = [
             torrent_row_w.base_widget.cached_torrent["name"]
@@ -346,13 +355,18 @@ class TorrentList(uw.ListBox):
         else:
             max_name_len = 50
 
-        if self.torrent_list_box_w.width < (max_name_len + 80):
+        # synchronize header name column width
+        header = self.torrent_list_box_w.torrent_list_header_w
+        header.update_name_len(max_name_len)
+
+        if self.torrent_list_box_w.width < (max_name_len + 91):
+            header.update_name_len(0)
+            header.swap_to_pb_text()
             for torrent_row_w in self.torrent_row_store.values():
                 # resize torrent name to 0 (effectively hiding it)
                 #  name keeps resetting each time info is updated
                 torrent_row_w.base_widget.resize_name_len(0)
                 if torrent_row_w.base_widget.current_sizing != "narrow":
-                    # logger.info("Resizing %s to narrow" % torrent_row_w.base_widget.cached_torrent.name)
                     # ensure we're using the pb text
                     torrent_row_w.base_widget.swap_pb_bar_for_pb_text()
                     # insert a blank space
@@ -381,7 +395,8 @@ class TorrentList(uw.ListBox):
                     )
                     torrent_row_w.base_widget.current_sizing = "narrow"
 
-        elif self.torrent_list_box_w.width < (max_name_len + 115):
+        elif self.torrent_list_box_w.width < (max_name_len + 126):
+            header.swap_to_pb_text()
             for torrent_row_w in self.torrent_row_store.values():
                 if torrent_row_w.base_widget.current_sizing != "pb_text":
                     if torrent_row_w.base_widget.current_sizing == "narrow":
@@ -389,11 +404,11 @@ class TorrentList(uw.ListBox):
                             0
                         )
                         torrent_row_w.base_widget.contents.pop(0)
-                    # logger.info("Resizing %s to pb text" % torrent_row_w.base_widget.cached_torrent.name)
                     torrent_row_w.base_widget.swap_pb_bar_for_pb_text()
                     torrent_row_w.base_widget.base_widget.current_sizing = "pb_text"
 
         else:
+            header.swap_to_pb_bar()
             for torrent_row_w in self.torrent_row_store.values():
                 if torrent_row_w.base_widget.current_sizing != "pb_bar":
                     if torrent_row_w.base_widget.current_sizing == "narrow":
@@ -401,7 +416,6 @@ class TorrentList(uw.ListBox):
                             0
                         )
                         torrent_row_w.base_widget.contents.pop(0)
-                    # logger.info("Resizing %s to pb bar" % torrent_row_w.base_widget.cached_torrent.name)
                     torrent_row_w.base_widget.swap_pb_text_for_pb_bar()
                     torrent_row_w.base_widget.current_sizing = "pb_bar"
 
@@ -525,7 +539,91 @@ class TorrentRow(uw.Pile):
         if key in ["right"]:
             self.open_torrent_window()
             return None
+        if key in ["p", "P"]:
+            self.main.torrent_client.torrents_pause(torrent_ids=self._hash)
+            update_torrent_list_now.send("quick pause")
+            return None
+        if key in ["r", "R"]:
+            self.main.torrent_client.torrents_resume(torrent_ids=self._hash)
+            update_torrent_list_now.send("quick resume")
+            return None
+        if key == "F":
+            self.main.torrent_client.torrents_force_resume(torrent_ids=self._hash)
+            update_torrent_list_now.send("quick force resume")
+            return None
+        if key == "d":
+            self._quick_delete()
+            return None
         return key
+
+    def _quick_delete(self):
+        self._delete_files_w = uw.CheckBox(label="Delete Files")
+        self.main.loop.widget = uw.Overlay(
+            top_w=uw.LineBox(
+                uw.ListBox(
+                    uw.SimpleFocusListWalker(
+                        [
+                            uw.Divider(),
+                            uw.Text(
+                                f"Delete '{self.cached_torrent.get('name', '')}'?",
+                                align=uw.CENTER,
+                            ),
+                            uw.Divider(),
+                            self._delete_files_w,
+                            uw.Divider(),
+                            uw.Columns(
+                                [
+                                    uw.Padding(uw.Text("")),
+                                    (
+                                        6,
+                                        uw.AttrMap(
+                                            ButtonWithoutCursor(
+                                                "OK",
+                                                on_press=self._confirm_quick_delete,
+                                            ),
+                                            "",
+                                            focus_map="selected",
+                                        ),
+                                    ),
+                                    (
+                                        10,
+                                        uw.AttrMap(
+                                            ButtonWithoutCursor(
+                                                "Cancel",
+                                                on_press=self._cancel_quick_delete,
+                                            ),
+                                            "",
+                                            focus_map="selected",
+                                        ),
+                                    ),
+                                ],
+                                dividechars=2,
+                            ),
+                        ]
+                    )
+                ),
+                title="Delete Torrent",
+            ),
+            bottom_w=self.main.app_window,
+            align=uw.CENTER,
+            valign=uw.MIDDLE,
+            width=40,
+            height=11,
+            min_width=20,
+        )
+
+    def _confirm_quick_delete(self, _):
+        delete_files = self._delete_files_w.get_state()
+        self.main.torrent_client.torrents_delete(
+            torrent_ids=self._hash, delete_files=delete_files
+        )
+        update_torrent_list_now.send("quick delete")
+        self.main.loop.widget = self.main.app_window
+        keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
+
+    def _cancel_quick_delete(self, _):
+        self.main.loop.widget = self.main.app_window
+        keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
 
 
 class TorrentRowColumns(uw.Columns):
@@ -651,7 +749,7 @@ class TorrentRowColumns(uw.Columns):
 
         super().__init__(
             self.pb_full_info_list,
-            dividechars=1,
+            dividechars=2,
             focus_column=None,
             min_width=1,
             box_columns=None,
@@ -778,6 +876,62 @@ class TorrentListTabsColumns(uw.Columns):
         new_tab: uw.AttrMap = self.focus
         self.update_focused_tab(old_tab=old_tab, new_tab=new_tab)
         return key
+
+
+class TorrentListHeader(uw.Columns):
+    """Non-selectable header row with column labels matching TorrentRowColumns."""
+
+    LABELS = [
+        ("Name", None),
+        ("State", 12),
+        ("Size", 6),
+        ("Progress", None),
+        ("Down\u25bc", 7),
+        ("Up\u25b2", 7),
+        ("Uploaded", 7),
+        ("Ratio", 6),
+        ("Seeds", 5),
+        ("Leech", 5),
+        ("ETA", 7),
+        ("Category", None),
+    ]
+
+    def __init__(self):
+        name_len = int(config.get("TORRENT_LIST_MAX_TORRENT_NAME_LENGTH"))
+        pb_len = int(config.get("TORRENT_LIST_PROGRESS_BAR_LENGTH"))
+
+        column_list = []
+        for label, width in self.LABELS:
+            text_w = uw.Text(label, wrap=uw.CLIP)
+            if label == "Name":
+                column_list.append((name_len, text_w))
+            elif label == "Progress":
+                column_list.append((pb_len, text_w))
+            elif width is not None:
+                column_list.append((width, text_w))
+            else:
+                column_list.append(text_w)
+
+        super().__init__(column_list, dividechars=2)
+
+    def selectable(self):
+        return False
+
+    def update_name_len(self, name_len):
+        """Synchronize the Name column width with torrent rows."""
+        name_w, name_opts = self.contents[0]
+        self.contents[0] = (name_w, self.options(uw.GIVEN, name_len, False))
+
+    def swap_to_pb_text(self):
+        """Switch progress column to text width (4 chars)."""
+        label_w = uw.Text("Prog", wrap=uw.CLIP)
+        self.contents[3] = (label_w, self.options(uw.GIVEN, 4, False))
+
+    def swap_to_pb_bar(self):
+        """Switch progress column to bar width."""
+        pb_len = int(config.get("TORRENT_LIST_PROGRESS_BAR_LENGTH"))
+        label_w = uw.Text("Progress", wrap=uw.CLIP)
+        self.contents[3] = (label_w, self.options(uw.GIVEN, pb_len, False))
 
 
 class TorrentOptionsDialog(uw.ListBox):
@@ -996,6 +1150,8 @@ class TorrentOptionsDialog(uw.ListBox):
             )
         )
 
+        keybind_context_changed.send(self, hints=DIALOG_HINTS)
+
     def keypress(self, size, key):
         log_keypress(logger, self, key)
         key = super().keypress(size, {"shift tab": "up", "tab": "down"}.get(key, key))
@@ -1193,6 +1349,7 @@ class TorrentOptionsDialog(uw.ListBox):
     def reset_screen_to_torrent_list_window(self):
         update_torrent_list_now.send("torrent menu")
         self.main.loop.widget = self.main.app_window
+        keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
 
 
 class TorrentSortDialog(uw.ListBox):
@@ -1214,6 +1371,8 @@ class TorrentSortDialog(uw.ListBox):
 
         super().__init__(uw.SimpleFocusListWalker(items))
 
+        keybind_context_changed.send(self, hints=DIALOG_HINTS)
+
     def select_column(self, button, column_key):
         if self.torrent_list.sort_column == column_key:
             self.torrent_list.sort_ascending = not self.torrent_list.sort_ascending
@@ -1222,12 +1381,14 @@ class TorrentSortDialog(uw.ListBox):
             self.torrent_list.sort_ascending = True
         refresh_torrent_list_now.send("sort changed")
         self.main.loop.widget = self.main.app_window
+        keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
 
     def keypress(self, size, key):
         log_keypress(logger, self, key)
         key = super().keypress(size, key)
         if key == "esc":
             self.main.loop.widget = self.main.app_window
+            keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
         return key
 
 
@@ -1331,6 +1492,8 @@ class TorrentAddDialog(uw.ListBox):
             )
         )
 
+        keybind_context_changed.send(self, hints=DIALOG_HINTS)
+
     def add_torrent(self, b):
         torrent_file = self.torrent_file_w.get_edit_text()
         torrent_url = self.torrent_url_w.get_edit_text()
@@ -1386,3 +1549,4 @@ class TorrentAddDialog(uw.ListBox):
     def reset_screen_to_torrent_list_window(self):
         update_torrent_list_now.send("torrent add")
         self.main.loop.widget = self.main.app_window
+        keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)

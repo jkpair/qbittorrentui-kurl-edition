@@ -10,7 +10,13 @@ from qbittorrentui._vendored.attrdict import AttrDict
 from qbittorrentui.config import INFINITY, SECS_INFINITY, config
 from qbittorrentui.connector import Connector
 from qbittorrentui.debug import log_keypress, log_timing
-from qbittorrentui.events import torrent_window_tab_change
+from qbittorrentui.events import (
+    CONTENT_TAB_HINTS,
+    TORRENT_LIST_HINTS,
+    TORRENT_WINDOW_HINTS,
+    keybind_context_changed,
+    torrent_window_tab_change,
+)
 from qbittorrentui.formatters import natural_file_size, pretty_time_delta
 from qbittorrentui.misc_widgets import DownloadProgressBar, SelectableText
 
@@ -51,6 +57,8 @@ class TorrentWindow(uw.Columns):
         for tab_window in self.tabs.values():
             blinker.signal(torrent_hash).connect(receiver=tab_window.update)
 
+        keybind_context_changed.send(self, hints=TORRENT_WINDOW_HINTS)
+
     def switch_tab_window(self, sender, tab=None):
         if tab is None:
             return
@@ -59,20 +67,42 @@ class TorrentWindow(uw.Columns):
             self.content_column,
             self.options(width_type=uw.WEIGHT, width_amount=90, box_widget=False),
         )
+        if tab == "Content":
+            keybind_context_changed.send(self, hints=CONTENT_TAB_HINTS)
+        else:
+            keybind_context_changed.send(self, hints=TORRENT_WINDOW_HINTS)
 
     def keypress(self, size, key):
         log_keypress(logger, self, key)
+        if key == "left" and self.focus_position == 1:
+            # Move focus from content area back to tabs menu
+            self.focus_position = 0
+            keybind_context_changed.send(self, hints=TORRENT_WINDOW_HINTS)
+            return None
+        prev_focus = self.focus_position
         key = super().keypress(size, key)
+        # Update hints when focus moves into content area via right arrow
+        if prev_focus == 0 and self.focus_position == 1:
+            current_tab = self._get_current_tab_name()
+            if current_tab == "Content":
+                keybind_context_changed.send(self, hints=CONTENT_TAB_HINTS)
         if key in ["esc", "left"]:
             self.return_to_torrent_list()
             return None
         return key
+
+    def _get_current_tab_name(self):
+        for name, tab in self.tabs.items():
+            if tab is self.content_column:
+                return name
+        return None
 
     def return_to_torrent_list(self):
         self.main.daemon.remove_sync_torrent_hash(torrent_hash=self.torrent_hash)
         for tab_window in self.tabs.values():
             blinker.signal(self.torrent_hash).disconnect(receiver=tab_window.update)
         self.main.app_window.body = self.main.app_window.torrent_list_w
+        keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
 
 
 class TorrentTabsDisplay(uw.ListBox):
@@ -1081,11 +1111,21 @@ class ContentDisplay(uw.Pile):
             super().__init__(node)
             # insert an extra AttrWrap for our own use
             super().__init__(node)
-            self._w = uw.AttrMap(self._w, None)
-            # self.flagged = False
-            # self.update_w()
-            self._w.attr = ""
-            self._w.focus_attr = "selected"
+            # use a focus_map dict so inner widget attributes (like the
+            # progress bar's "pg normal"/"pg complete") also get remapped
+            # when this row has focus — otherwise only the default attr
+            # changes and the bar swallows the highlight.
+            self._w = uw.AttrMap(
+                self._w,
+                attr_map="",
+                focus_map={
+                    None: "selected",
+                    "": "selected",
+                    "pg normal": "selected",
+                    "pg complete": "selected",
+                    "dirmark": "selected",
+                },
+            )
 
         def selectable(self):
             return True

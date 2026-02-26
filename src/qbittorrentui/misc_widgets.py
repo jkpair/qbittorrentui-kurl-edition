@@ -1,5 +1,6 @@
 import urwid as uw
 
+from qbittorrentui.events import keybind_context_changed
 from qbittorrentui.formatters import natural_file_size
 
 
@@ -50,6 +51,38 @@ class DownloadProgressBar(uw.ProgressBar):
             percent = "unk"
 
         return (percent + "%") if percent != "unk" else percent
+
+
+class KeybindHintBar(uw.Text):
+    """Context-sensitive keybind hint bar displayed in the application footer."""
+
+    def __init__(self):
+        super().__init__("", wrap=uw.CLIP)
+        keybind_context_changed.connect(receiver=self.update_hints)
+
+    def update_hints(self, sender, hints=None):
+        """Update displayed keybind hints.
+
+        :param sender: signal sender
+        :param hints: list of (key_str, description) tuples
+        """
+        if not hints:
+            self.set_text("")
+            return
+
+        # auto-append Help hint
+        all_hints = list(hints) + [("?", "Help")]
+
+        markup = []
+        for i, (key_str, description) in enumerate(all_hints):
+            if i > 0:
+                markup.append("  ")
+            markup.append(("keybind key", f" {key_str} "))
+            markup.append(f":{description}")
+        self.set_text(markup)
+
+    def selectable(self):
+        return False
 
 
 class SelectableText(uw.Text):
