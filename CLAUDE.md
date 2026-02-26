@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-qBittorrenTUI is a Python terminal UI (TUI) application for managing qBittorrent, built with urwid. It connects to a qBittorrent Web UI and provides a console-based interface for monitoring and controlling torrents.
+QBittorrenTUI - Kurl Edition is a Python terminal UI (TUI) application for managing qBittorrent, built with urwid. It is a fork of [qBittorrenTUI](https://github.com/rmartin16/qbittorrentui) with additional features. It connects to a qBittorrent Web UI and provides a console-based interface for monitoring and controlling torrents.
 
 ## Build & Development Commands
 

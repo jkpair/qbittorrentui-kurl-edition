@@ -116,7 +116,7 @@ class Configuration(configparser.ConfigParser):
 
 
 # CONSTANTS
-APPLICATION_NAME = "qBittorrenTUI"
+APPLICATION_NAME = "QBittorrenTUI - Kurl Edition"
 # when a count of seconds should just be represented as infinity
 SECS_INFINITY = 100 * 24 * 60 * 60  # 100 days
 INFINITY = "\u221e"  # ∞

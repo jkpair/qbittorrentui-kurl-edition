@@ -328,7 +328,7 @@ class Main:
                     uw.SimpleFocusListWalker(
                         [
                             uw.Divider(),
-                            uw.Text("Quit qBittorrenTUI?", align=uw.CENTER),
+                            uw.Text("Quit QBittorrenTUI?", align=uw.CENTER),
                             uw.Divider(),
                             uw.Columns(
                                 [

@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qbittorrentui"
-version = "0.3.9"
+version = "0.4.0"
 requires-python = ">=3.10"
-description = "Console UI for qBittorrent v4.1+"
-authors = [{name = "Russell Martin"}]
-maintainers = [{name = "Russell Martin"}]
+description = "Console UI for qBittorrent v4.1+ (Kurl Edition)"
+authors = [{name = "Russell Martin"}, {name = "jkpair"}]
+maintainers = [{name = "jkpair"}]
 keywords = ["qbittorrent", "console", "terminal", "TUI", "text"]
 classifiers = [
     "Environment :: Console",
@@ -39,8 +39,9 @@ dev = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/rmartin16/qbittorrentui"
-"Source" = "https://github.com/rmartin16/qbittorrentui"
+"Homepage" = "https://github.com/jkpair/qbittorrentui-kurl-edition"
+"Source" = "https://github.com/jkpair/qbittorrentui-kurl-edition"
+"Upstream" = "https://github.com/rmartin16/qbittorrentui"
 
 [project.scripts]
 qbittorrentui = "qbittorrentui.__main__:main"
