@@ -542,6 +542,16 @@ class ConfigManagerDialog(uw.ListBox):
             [name_w, host_w, port_w, user_w, pass_w, auto_w, uw.Divider()]
         )
 
+        # general settings
+        walker_list.append(
+            uw.AttrMap(uw.Text(" General Settings", align=uw.LEFT), "reversed")
+        )
+        walker_list.append(uw.Divider())
+        self.default_torrent_dir_w = uw.Edit(
+            "  Default torrent directory: ", config.get("DEFAULT_TORRENT_DIR")
+        )
+        walker_list.extend([self.default_torrent_dir_w, uw.Divider()])
+
         # theme section
         walker_list.append(uw.AttrMap(uw.Text(" Theme", align=uw.LEFT), "reversed"))
         walker_list.append(uw.Divider())
@@ -712,6 +722,13 @@ class ConfigManagerDialog(uw.ListBox):
                     "1" if self.new_profile_widgets["auto_connect"].get_state() else "0"
                 ),
             )
+
+        # save default torrent directory
+        config.set(
+            section=config.default_section,
+            option="DEFAULT_TORRENT_DIR",
+            value=self.default_torrent_dir_w.get_edit_text(),
+        )
 
         # save selected theme
         for rb in self.theme_radio_group:

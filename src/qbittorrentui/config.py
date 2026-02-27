@@ -35,7 +35,7 @@ class Configuration(configparser.ConfigParser):
         self.config_path = Path(path)
 
     # Options stored at the DEFAULT level that should be persisted
-    _global_options = ("theme",)
+    _global_options = ("theme", "default_torrent_dir")
 
     def write_to_disk(self, path=None):
         """Write config sections and global options to disk.
