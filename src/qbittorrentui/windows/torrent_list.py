@@ -1,3 +1,4 @@
+import configparser
 import logging
 from contextlib import suppress
 from re import sub as re_sub
@@ -32,6 +33,7 @@ from qbittorrentui.formatters import natural_file_size, pretty_time_delta
 from qbittorrentui.misc_widgets import (
     ButtonWithoutCursor,
     DownloadProgressBar,
+    FileBrowserDialog,
     SelectableText,
 )
 from qbittorrentui.windows.torrent import TorrentWindow
@@ -97,7 +99,7 @@ class TorrentListWindow(uw.Pile):
         key = super().keypress(size, key)
         if key in ["a", "A"]:
             self.main.loop.widget = uw.Overlay(
-                top_w=uw.LineBox(TorrentAddDialog(self.main)),
+                top_w=uw.AttrMap(uw.LineBox(TorrentAddDialog(self.main)), "background"),
                 bottom_w=self.main.app_window,
                 align=uw.CENTER,
                 valign=uw.MIDDLE,
@@ -107,9 +109,12 @@ class TorrentListWindow(uw.Pile):
             )
         elif key in ["s", "S"]:
             self.main.loop.widget = uw.Overlay(
-                top_w=uw.LineBox(
-                    TorrentSortDialog(self.main, self.torrent_list_w),
-                    title="Sort Torrents",
+                top_w=uw.AttrMap(
+                    uw.LineBox(
+                        TorrentSortDialog(self.main, self.torrent_list_w),
+                        title="Sort Torrents",
+                    ),
+                    "background",
                 ),
                 bottom_w=self.main.app_window,
                 align=uw.CENTER,
@@ -497,13 +502,16 @@ class TorrentRow(uw.Pile):
         torrent_name = self.cached_torrent.get("name", "")
 
         self.main.torrent_options_window = uw.Overlay(
-            top_w=uw.LineBox(
-                TorrentOptionsDialog(
-                    torrent_list_box_w=self.torrent_list_box_w,
-                    torrent_hash=self.get_torrent_hash(),
-                    torrent=self.cached_torrent,
+            top_w=uw.AttrMap(
+                uw.LineBox(
+                    TorrentOptionsDialog(
+                        torrent_list_box_w=self.torrent_list_box_w,
+                        torrent_hash=self.get_torrent_hash(),
+                        torrent=self.cached_torrent,
+                    ),
+                    title=torrent_name,
                 ),
-                title=torrent_name,
+                "background",
             ),
             bottom_w=self.torrent_list_box_w.main.app_window,
             align=uw.CENTER,
@@ -529,7 +537,7 @@ class TorrentRow(uw.Pile):
             ]
         )
         frame_w = uw.Frame(body=torrent_window, header=header_w)
-        self.main.app_window.body = frame_w
+        self.main.app_window.body = uw.AttrMap(frame_w, "background")
 
     def keypress(self, size, key):
         log_keypress(logger, self, key)
@@ -559,50 +567,53 @@ class TorrentRow(uw.Pile):
     def _quick_delete(self):
         self._delete_files_w = uw.CheckBox(label="Delete Files")
         self.main.loop.widget = uw.Overlay(
-            top_w=uw.LineBox(
-                uw.ListBox(
-                    uw.SimpleFocusListWalker(
-                        [
-                            uw.Divider(),
-                            uw.Text(
-                                f"Delete '{self.cached_torrent.get('name', '')}'?",
-                                align=uw.CENTER,
-                            ),
-                            uw.Divider(),
-                            self._delete_files_w,
-                            uw.Divider(),
-                            uw.Columns(
-                                [
-                                    uw.Padding(uw.Text("")),
-                                    (
-                                        6,
-                                        uw.AttrMap(
-                                            ButtonWithoutCursor(
-                                                "OK",
-                                                on_press=self._confirm_quick_delete,
+            top_w=uw.AttrMap(
+                uw.LineBox(
+                    uw.ListBox(
+                        uw.SimpleFocusListWalker(
+                            [
+                                uw.Divider(),
+                                uw.Text(
+                                    f"Delete '{self.cached_torrent.get('name', '')}'?",
+                                    align=uw.CENTER,
+                                ),
+                                uw.Divider(),
+                                self._delete_files_w,
+                                uw.Divider(),
+                                uw.Columns(
+                                    [
+                                        uw.Padding(uw.Text("")),
+                                        (
+                                            6,
+                                            uw.AttrMap(
+                                                ButtonWithoutCursor(
+                                                    "OK",
+                                                    on_press=self._confirm_quick_delete,
+                                                ),
+                                                "",
+                                                focus_map="selected",
                                             ),
-                                            "",
-                                            focus_map="selected",
                                         ),
-                                    ),
-                                    (
-                                        10,
-                                        uw.AttrMap(
-                                            ButtonWithoutCursor(
-                                                "Cancel",
-                                                on_press=self._cancel_quick_delete,
+                                        (
+                                            10,
+                                            uw.AttrMap(
+                                                ButtonWithoutCursor(
+                                                    "Cancel",
+                                                    on_press=self._cancel_quick_delete,
+                                                ),
+                                                "",
+                                                focus_map="selected",
                                             ),
-                                            "",
-                                            focus_map="selected",
                                         ),
-                                    ),
-                                ],
-                                dividechars=2,
-                            ),
-                        ]
-                    )
+                                    ],
+                                    dividechars=2,
+                                ),
+                            ]
+                        )
+                    ),
+                    title="Delete Torrent",
                 ),
-                title="Delete Torrent",
+                "background",
             ),
             bottom_w=self.main.app_window,
             align=uw.CENTER,
@@ -1278,43 +1289,46 @@ class TorrentOptionsDialog(uw.ListBox):
     def delete_torrent(self, b):
         self.delete_files_w = uw.CheckBox(label="Delete Files")
         self.main.loop.widget = uw.Overlay(
-            top_w=uw.LineBox(
-                uw.ListBox(
-                    uw.SimpleFocusListWalker(
-                        [
-                            uw.Divider(),
-                            self.delete_files_w,
-                            uw.Divider(),
-                            uw.Columns(
-                                [
-                                    uw.Padding(uw.Text("")),
-                                    (
-                                        6,
-                                        uw.AttrMap(
-                                            ButtonWithoutCursor(
-                                                "OK", on_press=self.confirm_delete
+            top_w=uw.AttrMap(
+                uw.LineBox(
+                    uw.ListBox(
+                        uw.SimpleFocusListWalker(
+                            [
+                                uw.Divider(),
+                                self.delete_files_w,
+                                uw.Divider(),
+                                uw.Columns(
+                                    [
+                                        uw.Padding(uw.Text("")),
+                                        (
+                                            6,
+                                            uw.AttrMap(
+                                                ButtonWithoutCursor(
+                                                    "OK", on_press=self.confirm_delete
+                                                ),
+                                                "",
+                                                focus_map="selected",
                                             ),
-                                            "",
-                                            focus_map="selected",
                                         ),
-                                    ),
-                                    (
-                                        10,
-                                        uw.AttrMap(
-                                            ButtonWithoutCursor(
-                                                "Cancel",
-                                                on_press=self.close_delete_dialog,
+                                        (
+                                            10,
+                                            uw.AttrMap(
+                                                ButtonWithoutCursor(
+                                                    "Cancel",
+                                                    on_press=self.close_delete_dialog,
+                                                ),
+                                                "",
+                                                focus_map="selected",
                                             ),
-                                            "",
-                                            focus_map="selected",
                                         ),
-                                    ),
-                                ],
-                                dividechars=2,
-                            ),
-                        ]
+                                    ],
+                                    dividechars=2,
+                                ),
+                            ]
+                        )
                     )
-                )
+                ),
+                "background",
             ),
             bottom_w=self.main.app_window,
             align=uw.CENTER,
@@ -1414,6 +1428,17 @@ class TorrentAddDialog(uw.ListBox):
             create_folder = True
 
         self.torrent_file_w = uw.Edit(caption="Torrent file path: ")
+        browse_btn = ButtonWithoutCursor("Browse", on_press=self._open_file_browser)
+        self.torrent_file_row_w = uw.Columns(
+            [
+                self.torrent_file_w,
+                (
+                    12,
+                    uw.AttrMap(browse_btn, "", focus_map="selected"),
+                ),
+            ],
+            dividechars=1,
+        )
         self.torrent_url_w = uw.Edit(caption="Torrent url: ")
         self.autotmm_w = uw.CheckBox(
             "Automatic Torrent Management", state=prefs.auto_tmm_enabled
@@ -1430,9 +1455,7 @@ class TorrentAddDialog(uw.ListBox):
         start_paused = prefs.get(
             "start_paused_enabled", prefs.get("add_stopped_enabled", False)
         )
-        self.start_torrent_w = uw.CheckBox(
-            "Start Torrent", state=(not start_paused)
-        )
+        self.start_torrent_w = uw.CheckBox("Start Torrent", state=(not start_paused))
         self.download_in_sequential_order_w = uw.CheckBox(
             "Download in Sequential Order"
         )
@@ -1447,7 +1470,7 @@ class TorrentAddDialog(uw.ListBox):
         super().__init__(
             uw.SimpleFocusListWalker(
                 [
-                    self.torrent_file_w,
+                    self.torrent_file_row_w,
                     self.torrent_url_w,
                     uw.Divider(),
                     self.location_w,
@@ -1496,6 +1519,32 @@ class TorrentAddDialog(uw.ListBox):
             )
         )
 
+        keybind_context_changed.send(self, hints=DIALOG_HINTS)
+
+    def _open_file_browser(self, _=None):
+        try:
+            start_dir = config.get("DEFAULT_TORRENT_DIR")
+        except (KeyError, configparser.NoOptionError):
+            start_dir = ""
+        browser = FileBrowserDialog(
+            self.main,
+            on_select=self._on_file_selected,
+            start_dir=start_dir or None,
+        )
+        self.main.loop.widget = uw.Overlay(
+            top_w=uw.AttrMap(
+                uw.LineBox(browser, title="Select Torrent File"), "background"
+            ),
+            bottom_w=self.main.loop.widget,
+            align=uw.CENTER,
+            valign=uw.MIDDLE,
+            width=(uw.RELATIVE, 60),
+            height=(uw.RELATIVE, 70),
+            min_width=30,
+        )
+
+    def _on_file_selected(self, path):
+        self.torrent_file_w.set_edit_text(path)
         keybind_context_changed.send(self, hints=DIALOG_HINTS)
 
     def add_torrent(self, b):

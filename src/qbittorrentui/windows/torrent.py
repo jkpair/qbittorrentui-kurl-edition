@@ -101,7 +101,9 @@ class TorrentWindow(uw.Columns):
         self.main.daemon.remove_sync_torrent_hash(torrent_hash=self.torrent_hash)
         for tab_window in self.tabs.values():
             blinker.signal(self.torrent_hash).disconnect(receiver=tab_window.update)
-        self.main.app_window.body = self.main.app_window.torrent_list_w
+        self.main.app_window.body = uw.AttrMap(
+            self.main.app_window.torrent_list_w, "background"
+        )
         keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
 
 
@@ -931,7 +933,7 @@ class ContentDisplay(uw.Pile):
             )
         )
         self.tree_w = uw.TreeListBox(self.walker)
-        w_list = [(1, self.title_bar), self.tree_w]
+        w_list = [(1, uw.AttrMap(self.title_bar, "background")), self.tree_w]
 
         super().__init__(w_list)
 
@@ -1117,10 +1119,11 @@ class ContentDisplay(uw.Pile):
             # changes and the bar swallows the highlight.
             self._w = uw.AttrMap(
                 self._w,
-                attr_map="",
+                attr_map="background",
                 focus_map={
                     None: "selected",
                     "": "selected",
+                    "background": "selected",
                     "pg normal": "selected",
                     "pg complete": "selected",
                     "dirmark": "selected",

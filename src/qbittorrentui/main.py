@@ -201,11 +201,14 @@ class Main:
     def connection_lost(self, sender):
         logger.info("Connection lost...")
         self.loop.widget = uw.Overlay(
-            top_w=uw.LineBox(
-                ConnectDialog(
-                    main=self,
-                    error_message="Connection lost...attempting automatic reconnection",
-                )
+            top_w=uw.AttrMap(
+                uw.LineBox(
+                    ConnectDialog(
+                        main=self,
+                        error_message="Connection lost...attempting automatic reconnection",
+                    )
+                ),
+                "background",
             ),
             bottom_w=self.loop.widget,
             align=uw.CENTER,
@@ -298,7 +301,10 @@ class Main:
         logger.info("Showing %s", APPLICATION_NAME)
         self.app_window = AppWindow(main=self)
         self.loop.widget = uw.Overlay(
-            top_w=uw.LineBox(ConnectDialog(main=self, support_auto_connect=True)),
+            top_w=uw.AttrMap(
+                uw.LineBox(ConnectDialog(main=self, support_auto_connect=True)),
+                "background",
+            ),
             bottom_w=self.app_window,
             align=uw.CENTER,
             width=(uw.RELATIVE, 50),
@@ -315,45 +321,48 @@ class Main:
 
     def _show_quit_confirmation(self):
         self.loop.widget = uw.Overlay(
-            top_w=uw.LineBox(
-                uw.ListBox(
-                    uw.SimpleFocusListWalker(
-                        [
-                            uw.Divider(),
-                            uw.Text("Quit QBittorrenTUI?", align=uw.CENTER),
-                            uw.Divider(),
-                            uw.Columns(
-                                [
-                                    uw.Padding(uw.Text("")),
-                                    (
-                                        7,
-                                        uw.AttrMap(
-                                            ButtonWithoutCursor(
-                                                "Yes",
-                                                on_press=self._confirm_quit,
+            top_w=uw.AttrMap(
+                uw.LineBox(
+                    uw.ListBox(
+                        uw.SimpleFocusListWalker(
+                            [
+                                uw.Divider(),
+                                uw.Text("Quit QBittorrenTUI?", align=uw.CENTER),
+                                uw.Divider(),
+                                uw.Columns(
+                                    [
+                                        uw.Padding(uw.Text("")),
+                                        (
+                                            7,
+                                            uw.AttrMap(
+                                                ButtonWithoutCursor(
+                                                    "Yes",
+                                                    on_press=self._confirm_quit,
+                                                ),
+                                                "",
+                                                focus_map="selected",
                                             ),
-                                            "",
-                                            focus_map="selected",
                                         ),
-                                    ),
-                                    (
-                                        6,
-                                        uw.AttrMap(
-                                            ButtonWithoutCursor(
-                                                "No",
-                                                on_press=self._dismiss_quit,
+                                        (
+                                            6,
+                                            uw.AttrMap(
+                                                ButtonWithoutCursor(
+                                                    "No",
+                                                    on_press=self._dismiss_quit,
+                                                ),
+                                                "",
+                                                focus_map="selected",
                                             ),
-                                            "",
-                                            focus_map="selected",
                                         ),
-                                    ),
-                                    uw.Padding(uw.Text("")),
-                                ],
-                                dividechars=2,
-                            ),
-                        ]
+                                        uw.Padding(uw.Text("")),
+                                    ],
+                                    dividechars=2,
+                                ),
+                            ]
+                        )
                     )
-                )
+                ),
+                "background",
             ),
             bottom_w=self.loop.widget,
             align=uw.CENTER,

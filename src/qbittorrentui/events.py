@@ -75,3 +75,10 @@ CONTENT_TAB_HINTS = [
     ("Esc", "Back"),
     ("\u2190", "Back"),
 ]
+
+FILE_BROWSER_HINTS = [
+    ("\u2191\u2193", "Navigate"),
+    ("Enter", "Open/Select"),
+    ("Tab", "Complete"),
+    ("Esc", "Cancel"),
+]

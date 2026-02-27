@@ -42,7 +42,7 @@ class AppWindow(uw.Frame):
         )
 
         super().__init__(
-            body=self.torrent_list_w,
+            body=uw.AttrMap(self.torrent_list_w, "background"),
             header=self.title_bar_w,
             footer=footer,
             focus_part="body",
@@ -52,7 +52,7 @@ class AppWindow(uw.Frame):
         log_keypress(logger, self, key)
         if key in ["n", "N"]:
             self.main.loop.widget = uw.Overlay(
-                top_w=uw.LineBox(ConnectDialog(self.main)),
+                top_w=uw.AttrMap(uw.LineBox(ConnectDialog(self.main)), "background"),
                 bottom_w=self.main.loop.widget,
                 align=uw.CENTER,
                 width=(uw.RELATIVE, 50),
@@ -61,7 +61,9 @@ class AppWindow(uw.Frame):
             )
         elif key in ["c", "C"]:
             self.main.loop.widget = uw.Overlay(
-                top_w=uw.LineBox(ConfigManagerDialog(self.main)),
+                top_w=uw.AttrMap(
+                    uw.LineBox(ConfigManagerDialog(self.main)), "background"
+                ),
                 bottom_w=self.main.loop.widget,
                 align=uw.CENTER,
                 width=(uw.RELATIVE, 70),
@@ -70,7 +72,9 @@ class AppWindow(uw.Frame):
             )
         elif key == "?":
             self.main.loop.widget = uw.Overlay(
-                top_w=uw.LineBox(HelpDialog(self.main), title="Help"),
+                top_w=uw.AttrMap(
+                    uw.LineBox(HelpDialog(self.main), title="Help"), "background"
+                ),
                 bottom_w=self.main.loop.widget,
                 align=uw.CENTER,
                 width=(uw.RELATIVE, 60),
@@ -431,7 +435,9 @@ class ConnectDialog(uw.ListBox):
             config.set_default_section(section)
             # switch to torrent list window
             reset_daemons.send("connect dialog")
-            self.main.app_window.body = self.main.app_window.torrent_list_w
+            self.main.app_window.body = uw.AttrMap(
+                self.main.app_window.torrent_list_w, "background"
+            )
             self.main.loop.widget = self.main.app_window
             initialize_torrent_list.send("connect dialog")
             keybind_context_changed.send(self, hints=TORRENT_LIST_HINTS)
@@ -747,37 +753,40 @@ class ConfigManagerDialog(uw.ListBox):
     def _show_saved_popup(self):
         """Show a 'Saved!' popup that closes the config dialog on dismiss."""
         self.main.loop.widget = uw.Overlay(
-            top_w=uw.LineBox(
-                uw.ListBox(
-                    uw.SimpleFocusListWalker(
-                        [
-                            uw.Divider(),
-                            uw.Text(
-                                f"Saved to {config.config_path}",
-                                align=uw.CENTER,
-                            ),
-                            uw.Divider(),
-                            uw.Columns(
-                                [
-                                    uw.Padding(uw.Text("")),
-                                    (
-                                        6,
-                                        uw.AttrMap(
-                                            ButtonWithoutCursor(
-                                                "OK",
-                                                on_press=self._dismiss_saved_popup,
+            top_w=uw.AttrMap(
+                uw.LineBox(
+                    uw.ListBox(
+                        uw.SimpleFocusListWalker(
+                            [
+                                uw.Divider(),
+                                uw.Text(
+                                    f"Saved to {config.config_path}",
+                                    align=uw.CENTER,
+                                ),
+                                uw.Divider(),
+                                uw.Columns(
+                                    [
+                                        uw.Padding(uw.Text("")),
+                                        (
+                                            6,
+                                            uw.AttrMap(
+                                                ButtonWithoutCursor(
+                                                    "OK",
+                                                    on_press=self._dismiss_saved_popup,
+                                                ),
+                                                "",
+                                                focus_map="selected",
                                             ),
-                                            "",
-                                            focus_map="selected",
                                         ),
-                                    ),
-                                    uw.Padding(uw.Text("")),
-                                ],
-                                dividechars=2,
-                            ),
-                        ]
+                                        uw.Padding(uw.Text("")),
+                                    ],
+                                    dividechars=2,
+                                ),
+                            ]
+                        )
                     )
-                )
+                ),
+                "background",
             ),
             bottom_w=self.main.loop.widget,
             align=uw.CENTER,
@@ -800,47 +809,50 @@ class ConfigManagerDialog(uw.ListBox):
     def do_clear(self, *a):
         """Show confirmation before clearing config."""
         self.main.loop.widget = uw.Overlay(
-            top_w=uw.LineBox(
-                uw.ListBox(
-                    uw.SimpleFocusListWalker(
-                        [
-                            uw.Divider(),
-                            uw.Text(
-                                "Are you sure you want to clear all config?",
-                                align=uw.CENTER,
-                            ),
-                            uw.Divider(),
-                            uw.Columns(
-                                [
-                                    uw.Padding(uw.Text("")),
-                                    (
-                                        6,
-                                        uw.AttrMap(
-                                            ButtonWithoutCursor(
-                                                "OK", on_press=self.confirm_clear
+            top_w=uw.AttrMap(
+                uw.LineBox(
+                    uw.ListBox(
+                        uw.SimpleFocusListWalker(
+                            [
+                                uw.Divider(),
+                                uw.Text(
+                                    "Are you sure you want to clear all config?",
+                                    align=uw.CENTER,
+                                ),
+                                uw.Divider(),
+                                uw.Columns(
+                                    [
+                                        uw.Padding(uw.Text("")),
+                                        (
+                                            6,
+                                            uw.AttrMap(
+                                                ButtonWithoutCursor(
+                                                    "OK", on_press=self.confirm_clear
+                                                ),
+                                                "",
+                                                focus_map="selected",
                                             ),
-                                            "",
-                                            focus_map="selected",
                                         ),
-                                    ),
-                                    (
-                                        10,
-                                        uw.AttrMap(
-                                            ButtonWithoutCursor(
-                                                "Cancel",
-                                                on_press=self.cancel_clear,
+                                        (
+                                            10,
+                                            uw.AttrMap(
+                                                ButtonWithoutCursor(
+                                                    "Cancel",
+                                                    on_press=self.cancel_clear,
+                                                ),
+                                                "",
+                                                focus_map="selected",
                                             ),
-                                            "",
-                                            focus_map="selected",
                                         ),
-                                    ),
-                                    uw.Padding(uw.Text("")),
-                                ],
-                                dividechars=2,
-                            ),
-                        ]
+                                        uw.Padding(uw.Text("")),
+                                    ],
+                                    dividechars=2,
+                                ),
+                            ]
+                        )
                     )
-                )
+                ),
+                "background",
             ),
             bottom_w=self.main.loop.widget,
             align=uw.CENTER,
