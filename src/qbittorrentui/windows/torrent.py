@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 from datetime import datetime
 from time import time
 
@@ -11,7 +12,8 @@ from qbittorrentui.config import INFINITY, SECS_INFINITY, config
 from qbittorrentui.connector import Connector
 from qbittorrentui.debug import log_keypress, log_timing
 from qbittorrentui.events import (
-    CONTENT_TAB_HINTS,
+    CONTENT_TAB_DIR_HINTS,
+    CONTENT_TAB_FILE_HINTS,
     TORRENT_LIST_HINTS,
     TORRENT_WINDOW_HINTS,
     keybind_context_changed,
@@ -68,7 +70,7 @@ class TorrentWindow(uw.Columns):
             self.options(width_type=uw.WEIGHT, width_amount=90, box_widget=False),
         )
         if tab == "Content":
-            keybind_context_changed.send(self, hints=CONTENT_TAB_HINTS)
+            self.tabs["Content"].send_content_hints()
         else:
             keybind_context_changed.send(self, hints=TORRENT_WINDOW_HINTS)
 
@@ -85,7 +87,7 @@ class TorrentWindow(uw.Columns):
         if prev_focus == 0 and self.focus_position == 1:
             current_tab = self._get_current_tab_name()
             if current_tab == "Content":
-                keybind_context_changed.send(self, hints=CONTENT_TAB_HINTS)
+                self.tabs["Content"].send_content_hints()
         if key in ["esc", "left"]:
             self.return_to_torrent_list()
             return None
@@ -910,7 +912,7 @@ class ContentDisplay(uw.Pile):
         self.torrent_hash = torrent_hash
         self.focused_path = None
         self.focused_node_class = ContentDisplay.DirectoryNode
-        self.collapsed_dirs = []
+        self.expanded_dirs = []
 
         self.title_bar = uw.Columns(
             [
@@ -927,7 +929,7 @@ class ContentDisplay(uw.Pile):
         self.walker = uw.TreeWalker(
             ContentDisplay.DirectoryNode(
                 content=ContentDisplay.Content(
-                    self.client, torrent_hash="", content={}, collapsed_dirs=[]
+                    self.client, torrent_hash="", content={}, expanded_dirs=[]
                 ),
                 path="/",
             )
@@ -940,12 +942,18 @@ class ContentDisplay(uw.Pile):
     def update(self, sender, **kw):
         start_time = time()
         torrent_content = kw.get("content", [])
+        torrent = kw.get("torrent")
+        if torrent:
+            self._save_path = getattr(torrent, "save_path", "") or getattr(
+                torrent, "content_path", ""
+            )
 
         content = ContentDisplay.Content(
             client=self.client,
             torrent_hash=self.torrent_hash,
             content=torrent_content,
-            collapsed_dirs=self.collapsed_dirs,
+            expanded_dirs=self.expanded_dirs,
+            save_path=getattr(self, "_save_path", ""),
         )
 
         try:
@@ -969,18 +977,35 @@ class ContentDisplay(uw.Pile):
 
         assert log_timing(logger, "Updating", self, sender, start_time)
 
+    def _get_focused_hints(self):
+        """Return the appropriate hints based on the currently focused node."""
+        try:
+            node = self.walker.get_focus()[1]
+            if node and hasattr(node, "content") and node.content.is_dir(
+                node.get_value().lstrip("/")
+            ):
+                return CONTENT_TAB_DIR_HINTS
+        except (TypeError, AttributeError):
+            pass
+        return CONTENT_TAB_FILE_HINTS
+
+    def send_content_hints(self):
+        keybind_context_changed.send(self, hints=self._get_focused_hints())
+
     def keypress(self, size, key):
         log_keypress(logger, self, key)
         key = super().keypress(size, key)
+        self.send_content_hints()
         return key
 
     class Content:
-        def __init__(self, client, torrent_hash, content, collapsed_dirs: list):
+        def __init__(self, client, torrent_hash, content, expanded_dirs: list, save_path=""):
             super().__init__()
             self.client = client
             self.torrent_hash = torrent_hash
+            self.save_path = save_path
             self._torrent_content = content
-            self._collapsed_dirs = collapsed_dirs
+            self._expanded_dirs = expanded_dirs
             self._content_tree = dict(name=self.dir_sep(), children=list())
 
             unwanted = "/.unwanted"
@@ -1050,16 +1075,16 @@ class ContentDisplay(uw.Pile):
                         break
             return file_data
 
-        def add_collapsed_dir(self, path):
-            if path not in self._collapsed_dirs:
-                self._collapsed_dirs.append(path)
+        def add_expanded_dir(self, path):
+            if path not in self._expanded_dirs:
+                self._expanded_dirs.append(path)
 
-        def remove_collapsed_dir(self, path):
-            if path in self._collapsed_dirs:
-                self._collapsed_dirs.remove(path)
+        def remove_expanded_dir(self, path):
+            if path in self._expanded_dirs:
+                self._expanded_dirs.remove(path)
 
-        def get_collapsed_dirs(self):
-            return self._collapsed_dirs
+        def get_expanded_dirs(self):
+            return self._expanded_dirs
 
         def children_for_path(self, path: str):
             if path:
@@ -1152,7 +1177,7 @@ class ContentDisplay(uw.Pile):
 
             # calculate filename width
             file_node_offset = 1 if not is_dir else 0
-            dir_node_offset = 3 if is_dir else 0
+            dir_node_offset = 6 if is_dir else 0
             depth_offset = (self.get_node().get_depth()) * 3
             filename_width = (
                 int(config.get("TORRENT_CONTENT_MAX_FILENAME_LENGTH"))
@@ -1163,6 +1188,8 @@ class ContentDisplay(uw.Pile):
 
             # filename
             filename = self.get_node().get_key()
+            if is_dir:
+                filename = "\U0001f4c1 " + filename
 
             # map priority
             priority_map = {
@@ -1228,19 +1255,17 @@ class ContentDisplay(uw.Pile):
                 key = self.unhandled_keys(size, key)
 
             # track expanding and collapsing dirs
-            if not self.expanded:
-                self.get_node().content.add_collapsed_dir(self.get_node().get_value())
+            if self.expanded:
+                self.get_node().content.add_expanded_dir(self.get_node().get_value())
             else:
-                self.get_node().content.remove_collapsed_dir(
+                self.get_node().content.remove_expanded_dir(
                     self.get_node().get_value()
                 )
             return key
 
         # priority bumping handled here
         def unhandled_keys(self, size, key):
-            if key in [" ", "enter"]:
-                # self.flagged = not self.flagged
-                # self.update_w()
+            if key == " ":
                 content = self.get_node().content
                 path = self.get_normalized_path()
                 file_data = content.get_file_data(path)
@@ -1252,6 +1277,17 @@ class ContentDisplay(uw.Pile):
                     file_ids=file_ids,
                     priority=new_priority,
                 )
+            elif key == "enter":
+                content = self.get_node().content
+                path = self.get_normalized_path()
+                if not content.is_dir(path) and content.save_path:
+                    full_path = os.path.join(content.save_path, path)
+                    if os.path.isfile(full_path):
+                        subprocess.Popen(
+                            ["xdg-open", full_path],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
             else:
                 return key
 
@@ -1281,18 +1317,26 @@ class ContentDisplay(uw.Pile):
 
         def __init__(self, node):
             super().__init__(node)
-            self.expanded = not (
-                self.get_node().get_value()
-                in self.get_node().content.get_collapsed_dirs()
+            self.expanded = (
+                self.get_node().get_depth() == 0
+                or self.get_node().get_value()
+                in self.get_node().content.get_expanded_dirs()
             )
             self.update_expanded_icon()
+
+        def unhandled_keys(self, size, key):
+            if key == "enter":
+                self.expanded = not self.expanded
+                self.update_expanded_icon()
+                return None
+            return super().unhandled_keys(size, key)
 
         def get_display_text(self):
             node = self.get_node()
             if node.get_depth() == 0:
-                return "/"
+                return "\U0001f4c1 /"
             else:
-                return node.get_key()
+                return "\U0001f4c1 " + node.get_key()
 
     class FileNode(uw.TreeNode):
         """Metadata storage for individual files."""

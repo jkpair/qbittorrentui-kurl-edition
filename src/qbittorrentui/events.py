@@ -45,6 +45,12 @@ torrent_window_tab_change = blinker.Signal()
 # signal that the active keybind context changed
 keybind_context_changed = blinker.Signal()
 
+# signal that new RSS data is available
+rss_data_changed = blinker.Signal()
+
+# signal to wake RSS sync daemon up
+update_rss_now = blinker.Signal()
+
 # signal to close up shop
 exit_tui = blinker.Signal()
 
@@ -55,6 +61,7 @@ TORRENT_LIST_HINTS = [
     ("d", "Delete"),
     ("a", "Add"),
     ("s", "Sort"),
+    ("f", "RSS"),
     ("Enter", "Options"),
     ("\u2192", "Details"),
 ]
@@ -70,10 +77,30 @@ TORRENT_WINDOW_HINTS = [
     ("\u2190", "Back"),
 ]
 
-CONTENT_TAB_HINTS = [
+CONTENT_TAB_FILE_HINTS = [
+    ("Enter", "Open"),
     ("Space", "Priority"),
     ("Esc", "Back"),
     ("\u2190", "Back"),
+]
+
+CONTENT_TAB_DIR_HINTS = [
+    ("Enter", "Expand/Collapse"),
+    ("Space", "Priority"),
+    ("Esc", "Back"),
+    ("\u2190", "Back"),
+]
+
+RSS_WINDOW_HINTS = [
+    ("f", "Filter Feed"),
+    ("t", "Category"),
+    ("/", "Search"),
+    ("a", "Add Feed"),
+    ("d", "Delete Feed"),
+    ("c", "Config"),
+    ("r", "Refresh"),
+    ("Enter", "Download"),
+    ("Esc", "Back"),
 ]
 
 FILE_BROWSER_HINTS = [
