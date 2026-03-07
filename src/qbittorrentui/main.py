@@ -12,6 +12,7 @@ from qbittorrentui.events import (
     connection_to_server_acquired,
     connection_to_server_lost,
     exit_tui,
+    rss_data_changed,
     server_details_changed,
     server_state_changed,
     server_torrents_changed,
@@ -75,6 +76,8 @@ class TorrentServer:
                     self.update_details()
                 elif signal == "sync_torrent_data_ready":
                     self.update_sync_torrents(torrent_hash=extra[0])
+                elif signal == "rss_data_ready":
+                    self.update_rss_data()
                 elif signal == "connection_lost":
                     connection_to_server_lost.send(sender)
                 elif signal == "connection_acquired":
@@ -145,6 +148,10 @@ class TorrentServer:
 
         if server_details_updated:
             server_state_changed.send("maindata update", server_state=self.server_state)
+
+    def update_rss_data(self):
+        data = self.daemon.get_rss_data()
+        rss_data_changed.send("torrent server", rss_data=data)
 
     def update_sync_torrents(self, torrent_hash):
         store = self.daemon.get_torrent_store(torrent_hash=torrent_hash)

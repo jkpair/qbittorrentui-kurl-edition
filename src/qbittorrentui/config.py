@@ -5,6 +5,7 @@ from pathlib import Path
 
 XDG_CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
 DEFAULT_CONFIG_PATH = XDG_CONFIG_DIR / "qbittorrentui" / "qbtui.conf"
+RSS_CONFIG_PATH = XDG_CONFIG_DIR / "qbittorrentui" / "rss.conf"
 
 
 class Configuration(configparser.ConfigParser):
@@ -115,6 +116,44 @@ class Configuration(configparser.ConfigParser):
                     )
 
 
+class RSSConfiguration:
+    """Manages per-feed RSS settings stored in an INI config file."""
+
+    _KEYS = ("url", "auto_download_pattern", "category", "save_path", "refresh_interval")
+
+    def __init__(self):
+        self._parser = configparser.ConfigParser()
+
+    def load(self):
+        if RSS_CONFIG_PATH.exists():
+            self._parser.read(RSS_CONFIG_PATH)
+
+    def save(self):
+        RSS_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(RSS_CONFIG_PATH, "w") as f:
+            self._parser.write(f)
+
+    def get_feed(self, name):
+        result = {}
+        for key in self._KEYS:
+            result[key] = self._parser.get(name, key, fallback="")
+        return result
+
+    def set_feed(self, name, **kwargs):
+        if not self._parser.has_section(name):
+            self._parser.add_section(name)
+        for key in self._KEYS:
+            if key in kwargs:
+                self._parser.set(name, key, kwargs[key])
+
+    def remove_feed(self, name):
+        self._parser.remove_section(name)
+        self.save()
+
+    def feeds(self):
+        return self._parser.sections()
+
+
 # CONSTANTS
 APPLICATION_NAME = "QBittorrenTUI - Kurl Edition"
 # when a count of seconds should just be represented as infinity
@@ -223,3 +262,4 @@ TORRENT_LIST_FILTERING_STATE_MAP = {
 
 # CONFIGURATION STORE
 config = Configuration()
+rss_config = RSSConfiguration()

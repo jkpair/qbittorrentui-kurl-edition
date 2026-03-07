@@ -330,5 +330,34 @@ class Connector:
             return self._qbt_client.sync_maindata(rid)
 
     @connection_required
+    def rss_items(self, include_feed_data=True):
+        if self._client_type is ClientType.qbittorrent:
+            return self._qbt_client.rss_items(include_feed_data=include_feed_data)
+
+    @connection_required
+    def rss_add_feed(self, url, item_path=""):
+        if self._client_type is ClientType.qbittorrent:
+            self._send_command(
+                func=self._qbt_client.rss_add_feed,
+                func_args=dict(url=url, item_path=item_path),
+            )
+
+    @connection_required
+    def rss_remove_item(self, item_path):
+        if self._client_type is ClientType.qbittorrent:
+            self._send_command(
+                func=self._qbt_client.rss_remove_item,
+                func_args=dict(item_path=item_path),
+            )
+
+    @connection_required
+    def rss_refresh_item(self, item_path):
+        if self._client_type is ClientType.qbittorrent:
+            self._send_command(
+                func=self._qbt_client.rss_refresh_item,
+                func_args=dict(item_path=item_path),
+            )
+
+    @connection_required
     def api_wrapper(self, api_endpoint, **kwargs):
         return getattr(self._qbt_client, api_endpoint)(**kwargs)

@@ -19,6 +19,7 @@ from qbittorrentui.events import (
 from qbittorrentui.formatters import natural_file_size
 from qbittorrentui.misc_widgets import ButtonWithoutCursor, KeybindHintBar
 from qbittorrentui.themes import list_available_themes
+from qbittorrentui.windows.rss import RSSWindow
 from qbittorrentui.windows.torrent_list import TorrentListWindow
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,10 @@ class AppWindow(uw.Frame):
 
     def keypress(self, size, key):
         log_keypress(logger, self, key)
+        # Let the body widget handle the key first; if consumed, stop here.
+        key = super().keypress(size, key)
+        if key is None:
+            return None
         if key in ["n", "N"]:
             self.main.loop.widget = uw.Overlay(
                 top_w=uw.AttrMap(uw.LineBox(ConnectDialog(self.main)), "background"),
@@ -59,6 +64,7 @@ class AppWindow(uw.Frame):
                 valign=uw.MIDDLE,
                 height=(uw.RELATIVE, 50),
             )
+            return None
         elif key in ["c", "C"]:
             self.main.loop.widget = uw.Overlay(
                 top_w=uw.AttrMap(
@@ -70,6 +76,11 @@ class AppWindow(uw.Frame):
                 valign=uw.MIDDLE,
                 height=(uw.RELATIVE, 80),
             )
+            return None
+        elif key in ["f"]:
+            rss_w = RSSWindow(main=self.main)
+            self.body = uw.AttrMap(rss_w, "background")
+            return None
         elif key == "?":
             self.main.loop.widget = uw.Overlay(
                 top_w=uw.AttrMap(
@@ -82,7 +93,7 @@ class AppWindow(uw.Frame):
                 height=(uw.RELATIVE, 80),
             )
             return None
-        return super().keypress(size, key)
+        return key
 
 
 class AppTitleBar(uw.Text):
@@ -195,6 +206,7 @@ class HelpDialog(uw.ListBox):
                 ("s / S", "Sort torrent list"),
                 ("Enter", "Open torrent options dialog"),
                 ("\u2192 (Right)", "Open torrent details"),
+                ("f", "Open RSS feeds browser"),
                 ("n / N", "New connection"),
                 ("c / C", "Configuration manager"),
                 ("q / Q", "Quit application"),
@@ -215,6 +227,19 @@ class HelpDialog(uw.ListBox):
             [
                 ("Space", "Cycle file priority"),
                 ("Esc / \u2190", "Return to torrent list"),
+            ],
+        ),
+        (
+            "RSS Feeds",
+            [
+                ("f", "Focus feed sidebar"),
+                ("F", "Clear feed filter"),
+                ("/", "Search articles by title"),
+                ("a / A", "Add new RSS feed"),
+                ("d / D", "Delete selected feed"),
+                ("r / R", "Refresh selected feed"),
+                ("Enter", "Download torrent / select feed"),
+                ("Esc", "Return to torrent list"),
             ],
         ),
         (

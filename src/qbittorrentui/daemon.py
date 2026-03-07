@@ -13,10 +13,12 @@ from qbittorrentui.debug import log_timing
 from qbittorrentui.events import (
     connection_to_server_status,
     reset_daemons,
+    rss_data_changed,
     run_server_command,
     server_details_changed,
     server_state_changed,
     server_torrents_changed,
+    update_rss_now,
     update_torrent_list_now,
     update_torrent_window_now,
     update_ui_from_daemon,
@@ -68,11 +70,16 @@ class DaemonManager(threading.Thread):
         self.commands_d = Commands(torrent_client)
         self.run_command = self.commands_d.run_command
 
+        # RSS
+        self.sync_rss_d = SyncRSS(torrent_client)
+        self.get_rss_data = self.sync_rss_d.get_rss_data
+
         ########################################
         # Signals
         ########################################
         update_torrent_list_now.connect(receiver=self.sync_maindata_d.set_wake_up)
         update_torrent_window_now.connect(receiver=self.sync_torrent_d.set_wake_up)
+        update_rss_now.connect(receiver=self.sync_rss_d.set_wake_up)
         run_server_command.connect(receiver=self.run_command)
         update_ui_from_daemon.connect(receiver=self.signal_ui)
         connection_to_server_status.connect(
@@ -87,6 +94,7 @@ class DaemonManager(threading.Thread):
             self.sync_torrent_d,
             self.server_details_d,
             self.commands_d,
+            self.sync_rss_d,
         ]
 
     @property
@@ -562,3 +570,36 @@ class Commands(Daemon):
     def run_command(self, sender: str, command_func: str, command_args: dict):
         self._command_q.put(dict(func=command_func, func_args=command_args))
         self.set_wake_up(sender)
+
+
+class SyncRSS(Daemon):
+    """Background daemon that syncs RSS feed data with app."""
+
+    def __init__(self, torrent_client: Connector):
+        super().__init__(torrent_client)
+
+        self._rss_data = {}
+        self._rss_data_lock = threading.RLock()
+
+    def _one_loop(self):
+        if rss_data_changed.receivers:
+            data = self.client.rss_items(include_feed_data=True)
+            self._rss_data_lock.acquire()
+            self._rss_data = data
+            self._rss_data_lock.release()
+            self.signal_ui("rss_data_ready")
+            self._loop_success = True
+        else:
+            logger.info("No receivers for RSS data...")
+
+    def reset_daemon(self):
+        logger.info("%s is resetting", self.name)
+        self._rss_data_lock.acquire()
+        self._rss_data = {}
+        self._rss_data_lock.release()
+
+    def get_rss_data(self):
+        self._rss_data_lock.acquire()
+        data = deepcopy(self._rss_data)
+        self._rss_data_lock.release()
+        return data
